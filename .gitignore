@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment variables & Secrets (CRITICAL)
+.env
+.env.*
+!.env.example
+*.env
+*/.env
+*/.env.*
+!*/.env.example
+
+# Credentials & Service Account Keys
+*firebase-admin*.json
+*service-account*.json
+*.pem
+*.key
+
+# Build Outputs
+dist/
+dist-ssr/
+build/
+client/dist/
+
+# Vercel deployment cache
+.vercel/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Temporary & Editor Files
+.vscode/
+.idea/
+*.sw?
+.markdown-collab/

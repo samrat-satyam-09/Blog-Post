@@ -1,0 +1,7 @@
+node_modules/
+.env
+.env.*
+!.env.example
+requests.rest
+*firebase-admin*.json
+.DS_Store
