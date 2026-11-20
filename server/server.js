@@ -28,33 +28,30 @@ let PORT = process.env.PORT || 3000;
 
 server.set("trust proxy", 1);
 
+// Robust CORS Middleware
+server.use((req, res, next) => {
+   const origin = req.headers.origin;
+   if (origin) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+   } else {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+   }
+   res.setHeader("Access-Control-Allow-Credentials", "true");
+   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+   res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+
+   if (req.method === "OPTIONS") {
+      return res.status(200).end();
+   }
+   next();
+});
+
 server.use(express.json());
 
-const allowedOrigins = [
-   process.env.ORIGIN_URL,
-   "http://localhost:5173",
-   "http://localhost:3000",
-   "https://makemyblogpost.vercel.app",
-   "https://blogger-client-bomz.onrender.com"
-].filter(Boolean);
-
-server.use(cors({
-   origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (
-         allowedOrigins.includes(origin) ||
-         origin.startsWith("http://localhost:") ||
-         origin.endsWith(".vercel.app") ||
-         (process.env.ALLOWED_ORIGINS && process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim()).includes(origin))
-      ) {
-         return callback(null, true);
-      }
-      return callback(null, true);
-   },
-   credentials: true
-}));
-
-server.options("*", cors());
+// Health check / root route
+server.get("/", (req, res) => {
+   return res.status(200).json({ status: "success", message: "Thinkpress Server is running!" });
+});
 
 // Database Connection & Serverless Setup
 let isDbConnected = false;
@@ -62,8 +59,13 @@ const connectDB = async () => {
    if (isDbConnected || mongoose.connection.readyState === 1) {
       return;
    }
+   if (!process.env.DATABASE) {
+      console.error("DATABASE connection string is missing in environment variables!");
+      return;
+   }
    try {
-      await mongoose.connect(process.env.DATABASE);
+      const dbUri = process.env.DATABASE.replace(/^['"]|['"]$/g, '');
+      await mongoose.connect(dbUri);
       isDbConnected = true;
       console.log("DB Connected Successfully");
    } catch (error) {
