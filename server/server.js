@@ -175,54 +175,62 @@ const genrateUsername = async (email) => {
 
 server.use(passport.initialize());
 
-passport.use(new GoogleStrategy({
-   clientID: process.env.GOOGLE_CLIENT_ID,
-   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-   callbackURL: process.env.GOOGLE_CALLBACK_URL || "/auth/google/callback"
-},
-   async (accessToken, refreshToken, profile, done) => {
-      try {
-         const email = profile.emails && profile.emails[0] ? profile.emails[0].value : null;
-         if (!email) {
-            return done(new Error("No email found from Google account."), null);
-         }
-
-         const name = profile.displayName || email.split("@")[0] || "User";
-         const picture = (profile.photos && profile.photos[0]) ? profile.photos[0].value : undefined;
-
-         let user = await User.findOne({ "personal_info.email": email });
-
-         if (user) {
-            return done(null, user);
-         } else {
-            let fullname = name;
-            if (fullname.length < 3) {
-               fullname = `${fullname} User`;
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+   passport.use(new GoogleStrategy({
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: process.env.GOOGLE_CALLBACK_URL || "/auth/google/callback"
+   },
+      async (accessToken, refreshToken, profile, done) => {
+         try {
+            const email = profile.emails && profile.emails[0] ? profile.emails[0].value : null;
+            if (!email) {
+               return done(new Error("No email found from Google account."), null);
             }
 
-            const username = await genrateUsername(email);
+            const name = profile.displayName || email.split("@")[0] || "User";
+            const picture = (profile.photos && profile.photos[0]) ? profile.photos[0].value : undefined;
 
-            user = await new User({
-               personal_info: {
-                  fullname,
-                  email,
-                  profile_img: picture,
-                  username
-               },
-               google_auth: true
-            }).save();
+            let user = await User.findOne({ "personal_info.email": email });
 
-            return done(null, user);
+            if (user) {
+               return done(null, user);
+            } else {
+               let fullname = name;
+               if (fullname.length < 3) {
+                  fullname = `${fullname} User`;
+               }
+
+               const username = await genrateUsername(email);
+
+               user = await new User({
+                  personal_info: {
+                     fullname,
+                     email,
+                     profile_img: picture,
+                     username
+                  },
+                  google_auth: true
+               }).save();
+
+               return done(null, user);
+            }
+         } catch (error) {
+            console.error("Google strategy error:", error);
+            return done(error, null);
          }
-      } catch (error) {
-         console.error("Google strategy error:", error);
-         return done(error, null);
       }
-   }
-));
+   ));
+} else {
+   console.warn("WARNING: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is missing. Google OAuth strategy skipped.");
+}
 
 // Google OAuth Login Route
 server.get("/auth/google", (req, res, next) => {
+   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return res.status(500).json({ error: "Google OAuth credentials are not configured on server." });
+   }
+
    const clientOrigin = req.query.from || req.headers.referer || process.env.ORIGIN_URL || "http://localhost:5173";
    let sanitizedOrigin = process.env.ORIGIN_URL || "http://localhost:5173";
    try {
@@ -247,6 +255,10 @@ server.get("/auth/google/callback", (req, res, next) => {
       } catch (e) {
          console.error("Invalid state origin:", e);
       }
+   }
+
+   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return res.redirect(`${targetOrigin}/sign-in?error=Google%20OAuth%20not%20configured%20on%20server`);
    }
 
    if (req.query.error) {
