@@ -1,4 +1,4 @@
-import dotenv, { populate } from 'dotenv';
+import dotenv from 'dotenv';
 import express from 'express';
 import mongoose from 'mongoose';
 dotenv.config();
@@ -6,7 +6,8 @@ import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import jwt from 'jsonwebtoken';
 import cors from 'cors';
-import aws from 'aws-sdk';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 
@@ -105,25 +106,26 @@ if (!process.env.VERCEL) {
 
 
 
-// Setting up the Amazon S3 service...
-const s3 = new aws.S3({
+// Setting up the Amazon S3 service (AWS SDK v3)...
+const s3Client = new S3Client({
    region: 'ap-south-1',
-   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+   credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+   }
 });
 
 const genrateUploadURL = async () => {
-
    const date = new Date();
    const imageName = `${nanoid()}-${date.getTime()}.jpeg`;
 
-   return await s3.getSignedUrlPromise('putObject', {
+   const command = new PutObjectCommand({
       Bucket: 'blog-post0',
       Key: imageName,
-      Expires: 2000, // 3 days expiration
       ContentType: 'image/jpeg'
-   })
+   });
 
+   return await getSignedUrl(s3Client, command, { expiresIn: 2000 });
 }
 
 
