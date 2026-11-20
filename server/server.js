@@ -175,13 +175,19 @@ const genrateUsername = async (email) => {
    return username;
 }
 
+const googleClientId = process.env.GOOGLE_CLIENT_ID ? process.env.GOOGLE_CLIENT_ID.trim() : null;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET ? process.env.GOOGLE_CLIENT_SECRET.trim() : null;
+const googleCallbackUrl = process.env.GOOGLE_CALLBACK_URL 
+   ? process.env.GOOGLE_CALLBACK_URL.trim() 
+   : (process.env.VERCEL ? "https://thinkpress-server.vercel.app/auth/google/callback" : "http://localhost:3000/auth/google/callback");
+
 server.use(passport.initialize());
 
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+if (googleClientId && googleClientSecret) {
    passport.use(new GoogleStrategy({
-      clientID: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL || "/auth/google/callback"
+      clientID: googleClientId,
+      clientSecret: googleClientSecret,
+      callbackURL: googleCallbackUrl
    },
       async (accessToken, refreshToken, profile, done) => {
          try {
@@ -229,7 +235,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 
 // Google OAuth Login Route
 server.get("/auth/google", (req, res, next) => {
-   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+   if (!googleClientId || !googleClientSecret) {
       return res.status(500).json({ error: "Google OAuth credentials are not configured on server." });
    }
 
@@ -259,7 +265,7 @@ server.get("/auth/google/callback", (req, res, next) => {
       }
    }
 
-   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+   if (!googleClientId || !googleClientSecret) {
       return res.redirect(`${targetOrigin}/sign-in?error=Google%20OAuth%20not%20configured%20on%20server`);
    }
 
@@ -270,8 +276,21 @@ server.get("/auth/google/callback", (req, res, next) => {
 
    passport.authenticate("google", { session: false }, (err, user, info) => {
       if (err || !user) {
-         const errorMessage = info?.message || err?.message || "Google authentication failed. Please try again.";
-         return res.redirect(`${targetOrigin}/sign-in?error=${encodeURIComponent(errorMessage)}`);
+         console.error("Google OAuth callback error:", err);
+         let detailedError = info?.message || err?.message || "Google authentication failed. Please try again.";
+
+         if (err?.oauthError?.data) {
+            try {
+               const googleData = JSON.parse(err.oauthError.data);
+               if (googleData.error) {
+                  detailedError = `${googleData.error}: ${googleData.error_description || ''}`;
+               }
+            } catch (e) {
+               detailedError = `${err.message} (${err.oauthError.data})`;
+            }
+         }
+
+         return res.redirect(`${targetOrigin}/sign-in?error=${encodeURIComponent(detailedError)}`);
       }
 
       const userData = formatDatatoSend(user);
