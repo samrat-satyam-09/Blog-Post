@@ -34,6 +34,7 @@ const allowedOrigins = [
    process.env.ORIGIN_URL,
    "http://localhost:5173",
    "http://localhost:3000",
+   "https://makemyblogpost.vercel.app",
    "https://blogger-client-bomz.onrender.com"
 ].filter(Boolean);
 
@@ -43,14 +44,17 @@ server.use(cors({
       if (
          allowedOrigins.includes(origin) ||
          origin.startsWith("http://localhost:") ||
+         origin.endsWith(".vercel.app") ||
          (process.env.ALLOWED_ORIGINS && process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim()).includes(origin))
       ) {
          return callback(null, true);
       }
-      return callback(null, origin);
+      return callback(null, true);
    },
    credentials: true
 }));
+
+server.options("*", cors());
 
 // Database Connection & Serverless Setup
 let isDbConnected = false;
