@@ -48,9 +48,13 @@ server.use((req, res, next) => {
 
 server.use(express.json());
 
-// Health check / root route
+// Health check / root route (does not block on DB)
 server.get("/", (req, res) => {
-   return res.status(200).json({ status: "success", message: "Thinkpress Server is running!" });
+   return res.status(200).json({
+      status: "success",
+      message: "Thinkpress Server is running!",
+      database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
+   });
 });
 
 // Database Connection & Serverless Setup
@@ -65,7 +69,9 @@ const connectDB = async () => {
    }
    try {
       const dbUri = process.env.DATABASE.replace(/^['"]|['"]$/g, '');
-      await mongoose.connect(dbUri);
+      await mongoose.connect(dbUri, {
+         serverSelectionTimeoutMS: 5000,
+      });
       isDbConnected = true;
       console.log("DB Connected Successfully");
    } catch (error) {
@@ -75,7 +81,17 @@ const connectDB = async () => {
 
 // Auto-connect middleware for serverless/cold starts
 server.use(async (req, res, next) => {
+   if (req.path === "/" || req.method === "OPTIONS") {
+      return next();
+   }
    await connectDB();
+   if (mongoose.connection.readyState !== 1) {
+      console.error("Database not connected. ReadyState:", mongoose.connection.readyState);
+      return res.status(500).json({
+         status: "error",
+         message: "Database connection failed. Please ensure MongoDB Atlas Network Access allows 0.0.0.0/0 and DATABASE environment variable is set in Vercel."
+      });
+   }
    next();
 });
 
